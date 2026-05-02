@@ -14,7 +14,21 @@ from pykalshi.feed import (
     PositionMessage,
     DEFAULT_WS_BASE,
     DEMO_WS_BASE,
+    _parse_ts,
 )
+
+
+class TestParseTs:
+    """Issue #18: Kalshi switched ts from int ms to ISO 8601 in April 2026."""
+
+    def test_int_passes_through(self):
+        assert _parse_ts(1776882719000) == 1776882719000
+
+    def test_iso_string(self):
+        assert _parse_ts("2026-04-22T18:31:59.043421Z") == 1776882719043
+
+    def test_garbage_returns_none(self):
+        assert _parse_ts("not-a-timestamp") is None
 
 
 class TestFeedCreation:
@@ -549,6 +563,11 @@ class TestMessageModels:
         assert msg.realized_pnl_dollars == "2.50"
         assert msg.ts == 1704067200
 
+    def test_ticker_model_accepts_iso_ts(self):
+        """Issue #18: TsField coerces ISO strings so typed models still validate."""
+        msg = TickerMessage(market_ticker="TEST", ts="2026-04-22T18:31:59Z")
+        assert msg.ts == 1776882719000
+
     def test_models_ignore_extra_fields(self):
         """Models ignore unknown fields (forward compatibility)."""
         msg = TickerMessage(
@@ -632,6 +651,19 @@ class TestLatencyMetrics:
         feed._dispatch(raw)
 
         assert feed._last_server_ts == server_ts
+
+    def test_server_timestamp_iso_string(self, client):
+        """Issue #18: ISO 8601 ts must not raise (was crashing every message)."""
+        feed = Feed(client)
+        feed.on("ticker", lambda x: None)
+
+        raw = json.dumps({
+            "type": "ticker",
+            "msg": {"market_ticker": "TEST", "ts": "2026-04-22T18:31:59.043421Z"},
+        })
+        feed._dispatch(raw)
+
+        assert feed._last_server_ts == 1776882719043
 
     def test_latency_calculated_from_timestamps(self, client):
         """Latency is calculated when server timestamp is available."""
