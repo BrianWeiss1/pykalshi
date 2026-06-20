@@ -106,7 +106,7 @@ class Portfolio:
         Returns:
             The canceled Order with updated status.
         """
-        endpoint = f"/portfolio/orders/{order_id}"
+        endpoint = f"/portfolio/events/orders/{order_id}"
         if subaccount is not None:
             endpoint += f"?subaccount={subaccount}"
         response = self._client.delete(endpoint)
@@ -169,7 +169,7 @@ class Portfolio:
         if subaccount is not None:
             body["subaccount"] = subaccount
 
-        response = self._client.post(f"/portfolio/orders/{order_id}/amend", body)
+        response = self._client.post(f"/portfolio/events/orders/{order_id}/amend", body)
         model = OrderModel.model_validate(response["order"])
         return Order(self._client, model)
 
@@ -181,7 +181,7 @@ class Portfolio:
             reduce_by_fp: Number of contracts to reduce by (fixed-point string).
         """
         response = self._client.post(
-            f"/portfolio/orders/{order_id}/decrease", {"reduce_by_fp": reduce_by_fp}
+            f"/portfolio/events/orders/{order_id}/decrease", {"reduce_by_fp": reduce_by_fp}
         )
         model = OrderModel.model_validate(response["order"])
         return Order(self._client, model)
@@ -227,7 +227,7 @@ class Portfolio:
 
     def get_order(self, order_id: str) -> Order:
         """Get a single order by ID."""
-        response = self._client.get(f"/portfolio/orders/{order_id}")
+        response = self._client.get(f"/portfolio/events/orders/{order_id}")
         model = OrderModel.model_validate(response["order"])
         return Order(self._client, model)
 
@@ -317,7 +317,7 @@ class Portfolio:
             results = portfolio.batch_place_orders(orders)
         """
         prepared = self._build_batch_orders(orders)
-        response = self._client.post("/portfolio/orders/batched", {"orders": prepared})
+        response = self._client.post("/portfolio/events/orders/batched", {"orders": prepared})
         result = []
         for item in (response.get("orders") or []):
             order_data = item.get("order")
@@ -336,7 +336,7 @@ class Portfolio:
             The canceled Orders with updated status.
         """
         orders = [{"order_id": oid} for oid in order_ids]
-        response = self._client.delete("/portfolio/orders/batched", {"orders": orders})
+        response = self._client.delete("/portfolio/events/orders/batched", {"orders": orders})
         result = []
         for item in (response.get("orders") or []):
             order_data = item.get("order")
@@ -349,7 +349,7 @@ class Portfolio:
 
     def get_queue_position(self, order_id: str) -> QueuePositionModel:
         """Get queue position for a single resting order."""
-        response = self._client.get(f"/portfolio/orders/{order_id}/queue_position")
+        response = self._client.get(f"/portfolio/events/orders/{order_id}/queue_position")
         return QueuePositionModel(
             order_id=order_id,
             queue_position_fp=response.get("queue_position_fp", "0.00"),
@@ -368,7 +368,7 @@ class Portfolio:
         if event_ticker:
             params["event_ticker"] = normalize_ticker(event_ticker)
 
-        endpoint = "/portfolio/orders/queue_positions"
+        endpoint = "/portfolio/events/orders/queue_positions"
         if params:
             endpoint = f"{endpoint}?{urlencode(params)}"
 
