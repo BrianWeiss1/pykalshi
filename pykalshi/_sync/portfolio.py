@@ -92,7 +92,7 @@ class Portfolio:
             price_level_structure=pls,
             fractional_trading_enabled=fte,
         )
-        response = self._client.post("/portfolio/orders", order_data)
+        response = self._client.post("/portfolio/events/orders", order_data)
         model = OrderModel.model_validate(response["order"])
         return Order(self._client, model)
 
@@ -222,7 +222,7 @@ class Portfolio:
             "cursor": cursor,
             **extra_params,
         }
-        data = self._client.paginated_get("/portfolio/orders", "orders", params, fetch_all)
+        data = self._client.paginated_get("/portfolio/events/orders", "orders", params, fetch_all)
         return DataFrameList(Order(self._client, OrderModel.model_validate(d)) for d in data)
 
     def get_order(self, order_id: str) -> Order:

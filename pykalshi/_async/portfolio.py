@@ -90,7 +90,7 @@ class AsyncPortfolio:
             price_level_structure=pls,
             fractional_trading_enabled=fte,
         )
-        response = await self._client.post("/portfolio/orders", order_data)
+        response = await self._client.post("/portfolio/events/orders", order_data)
         model = OrderModel.model_validate(response["order"])
         return AsyncOrder(self._client, model)
 
@@ -220,7 +220,7 @@ class AsyncPortfolio:
             "cursor": cursor,
             **extra_params,
         }
-        data = await self._client.paginated_get("/portfolio/orders", "orders", params, fetch_all)
+        data = await self._client.paginated_get("/portfolio/events/orders", "orders", params, fetch_all)
         return DataFrameList(AsyncOrder(self._client, OrderModel.model_validate(d)) for d in data)
 
     async def get_order(self, order_id: str) -> AsyncOrder:
