@@ -92,9 +92,13 @@ class Portfolio:
             price_level_structure=pls,
             fractional_trading_enabled=fte,
         )
+        # print("[DEBUG] order_data:", order_data)
+
         response = self._client.post("/portfolio/events/orders", order_data)
-        model = OrderModel.model_validate(response["order"])
-        return Order(self._client, model)
+        # # print(response)
+        # print(response["order_id"])
+        # model = OrderModel.model_validate(response["order_id"])
+        return response["order_id"]
 
     def cancel_order(self, order_id: str, *, subaccount: int | None = None) -> Order:
         """Cancel a resting order.
@@ -577,7 +581,7 @@ class Portfolio:
         price_level_structure=None,
         fractional_trading_enabled=None,
     ) -> dict:
-        """Build and validate order data dict. No I/O.
+        """Build and validate order data dict for the V2 /portfolio/events/orders endpoint.
 
         If price_level_structure is provided, validates tick size alignment.
         If fractional_trading_enabled is provided (False), validates count_fp is whole.
@@ -589,24 +593,32 @@ class Portfolio:
             raise ValueError("Limit orders require yes_price_dollars or no_price_dollars")
 
         if no_price_dollars is not None:
-            yes_price_dollars = str(Decimal("1") - Decimal(no_price_dollars))
+            yes_price = Decimal("1") - Decimal(no_price_dollars)
+        else:
+            yes_price = Decimal(yes_price_dollars)
 
         # Validate tick size if market structure is known
-        if price_level_structure and yes_price_dollars is not None:
-            Portfolio._validate_tick_size(Decimal(yes_price_dollars), price_level_structure)
+        if price_level_structure is not None:
+            Portfolio._validate_tick_size(yes_price, price_level_structure)
 
         # Validate fractional trading
         if fractional_trading_enabled is not None:
             Portfolio._validate_fractional(count_fp, fractional_trading_enabled)
 
+        if side == Side.YES:
+            v2_side = "bid" if action == Action.BUY else "ask"
+        elif side == Side.NO:
+            v2_side = "ask" if action == Action.BUY else "bid"
+        else:
+            raise ValueError(f"Unsupported side: {side!r}")
+
         ticker_str = ticker.upper() if isinstance(ticker, str) else ticker.ticker
 
         order_data: dict = {
             "ticker": ticker_str,
-            "action": action.value,
-            "side": side.value,
-            "count_fp": count_fp,
-            "yes_price_dollars": yes_price_dollars,
+            "side": v2_side,
+            "count": count_fp,
+            "price": f"{yes_price:.4f}",
         }
         if client_order_id is not None:
             order_data["client_order_id"] = client_order_id
@@ -617,9 +629,7 @@ class Portfolio:
         if reduce_only:
             order_data["reduce_only"] = True
         if expiration_ts is not None:
-            order_data["expiration_ts"] = expiration_ts
-        if buy_max_cost_dollars is not None:
-            order_data["buy_max_cost_dollars"] = buy_max_cost_dollars
+            order_data["expiration_time"] = expiration_ts
         if self_trade_prevention is not None:
             order_data["self_trade_prevention_type"] = self_trade_prevention.value
         if order_group_id is not None:
@@ -629,7 +639,6 @@ class Portfolio:
         if cancel_order_on_pause is not None:
             order_data["cancel_order_on_pause"] = cancel_order_on_pause
         return order_data
-
     @staticmethod
     def _build_batch_orders(orders: list[dict]) -> list[dict]:
         """Validate and prepare batch orders. No I/O."""
